@@ -11,7 +11,7 @@
 //return 
 //  0 success
 //  1 error
-int ReadOneRecord(FILE *fp,byte *buffer,int *len)
+int GetOneRecord(FILE *fp,byte *buffer,int *len)
 {
     byte curChar=0,oldChar=0;
     int count=0,timeout=1000;
@@ -36,7 +36,7 @@ int ReadOneRecord(FILE *fp,byte *buffer,int *len)
 //return 
 //  0 success
 //  1 error
-int AnalyzeOneRecord(byte *rawData,int rawLen,byte *realData,int *realLen)
+int ReadOneRecord(byte *rawData,int rawLen,byte *realData,int *realLen)
 {
     int i=1,count=0;//first byte is ':' and the last two byte is '\r' '\n'
     byte oneData=0,oneDataComplete=0;
@@ -66,9 +66,9 @@ int AnalyzeOneRecord(byte *rawData,int rawLen,byte *realData,int *realLen)
     return 0;
 }
 //Test
-void ReadSomeRecords(FILE *fp)
+void GetSomeRecords(FILE *fp)
 {
-    int nums=4;
+    int lines=1;
     do
     {
         byte buffer[ONE_RECOARD_MAX_SIZE] = {0};
@@ -76,10 +76,11 @@ void ReadSomeRecords(FILE *fp)
         int realLen = 0;
         int len=0;
         int i = 0;
-        if(0==ReadOneRecord(fp,buffer,&len))
+        if(0==GetOneRecord(fp,buffer,&len))
         {
-            if(0==AnalyzeOneRecord(buffer,len,realData,&realLen))
+            if(0==ReadOneRecord(buffer,len,realData,&realLen))
             {
+                printf("Line:%04d ",lines++);
                 for(i=0;i<realLen;i++)
                 {
                     printf("%02X ",realData[i]);
@@ -106,7 +107,7 @@ int main()
     }
     else
     {
-        ReadSomeRecords(fp);
+        GetSomeRecords(fp);
     }
     fclose(fp);
     return 0;
