@@ -2,6 +2,24 @@
 
 #define ONE_RECOARD_MAX_SIZE (43)
 #define ONE_DATA_MAX_SIZE    (21)
+#define DATA_SIZE            (16)
+
+
+//type
+#define HEX_TYPE_DATARECORD      (0x01)
+#define HEX_TYPE_EOF             (0x02)
+#define HEX_TYPE_SEGMENTADDRESS  (0x03)
+#define HEX_TYPE_EXLINARADDRESS  (0x04)
+#define HEX_TYPE_STARTLINARADDR  (0X05)
+
+
+typedef struct BIN_DATA
+{
+    int offset;
+    int dataLen;
+    byte type;
+    byte data[DATA_SIZE];
+}BIN_DATA_STRU;
 
 
 
@@ -64,6 +82,86 @@ int ReadOneRecord(byte *rawData,int rawLen,byte *realData,int *realLen)
     }
     *realLen=count;
     return 0;
+}
+
+//recordData: the record data
+//recordLen : the length of record data
+//binData : save the one record data to bin data
+//return 
+//   0 success
+//   1 checksum is error
+
+int AnalyzeOneRecord(byte *recordData,int recordLen,BIN_DATA_STRU *binData)
+{
+    int i=0;
+    byte checksum=0;
+    binData->dataLen = recordData[0];//the data length
+    checksum+=recordData[0];
+    binData->offset = (recordData[1]<<8)+recordData[2];//the offset
+    checksum+=recordData[1] + recordData[2];
+    binData->type = recordData[3];
+    checksum+=recordData[3];
+    for(i=4;i<recordLen-1)
+    {
+        binData->data[i-4] = recordData[i];
+        checksum+=recordData[i];
+    }
+    checksum = 0x100-checksum;
+    if(checksum!=recordData[i])
+    {
+        return 1;
+    }
+    return 0;
+}
+//hexfile to bin file 
+
+void HexToBin(void)
+{
+    FILE *hexFile=NULL,*binFile=NULL;
+    int baseAddr = 0;//the program is write in this address
+        
+    hexFile = fopen("/files/Test1.hex"."r");//read the hex file
+    binFile = fopen("filse/Test.bin","wb");//write the bin file
+    do
+    {
+        byte buffer[ONE_RECOARD_MAX_SIZE] = {0};
+        int len=0;
+        BIN_DATA_STRU binData = {0};
+        if(0==GetOneRecord(fp,buffer,&len))
+        {
+            byte realData[ONE_DATA_MAX_SIZE] = {0};
+            int realLen=0;
+            if(0==ReadOneRecord(buffer,len,realData,&realLen))
+            {
+                if(0==AnalyzeOneRecord(realData,realLen,&binData))
+                {
+                    switch(binData.type)
+                    {
+                        case HEX_TYPE_DATARECORD:
+                            {
+
+                            }
+                            break;
+                        case HEX_TYPE_EOF:
+                            {
+
+                            }
+                            break;
+                        case HEX_TYPE_SEGMENTADDRESS:
+                            break;
+                        case HEX_TYPE_EXLINARADDRESS:
+                            {
+                                
+                            }
+                            break;
+                        case HEX_TYPE_STARTLINARADDR:
+                            break;
+                    }
+                }
+            }
+        }
+    }while(feof(fp)==0);//read to the end of file
+
 }
 //Test
 void GetSomeRecords(FILE *fp)
