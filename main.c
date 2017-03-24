@@ -119,13 +119,14 @@ void HexToBin(void)
 {
     FILE *hexFile=NULL,*binFile=NULL;
     int baseAddr = 0;//the program is write in this address
+    int curAddr = 0;//current address when writing
         
     hexFile = fopen("/files/Test1.hex"."r");//read the hex file
     binFile = fopen("filse/Test.bin","wb");//write the bin file
     do
     {
         byte buffer[ONE_RECOARD_MAX_SIZE] = {0};
-        int len=0;
+        int len=0,i=0;
         BIN_DATA_STRU binData = {0};
         if(0==GetOneRecord(fp,buffer,&len))
         {
@@ -137,24 +138,38 @@ void HexToBin(void)
                 {
                     switch(binData.type)
                     {
-                        case HEX_TYPE_DATARECORD:
-                            {
-
-                            }
-                            break;
-                        case HEX_TYPE_EOF:
-                            {
-
-                            }
-                            break;
-                        case HEX_TYPE_SEGMENTADDRESS:
-                            break;
-                        case HEX_TYPE_EXLINARADDRESS:
+                        case HEX_TYPE_DATARECORD://Data record
                             {
                                 
                             }
                             break;
-                        case HEX_TYPE_STARTLINARADDR:
+                        case HEX_TYPE_EOF://End of file record
+                            {
+                                fclose(hexFile);
+                                fclose(binFile);
+                                return ;
+                            }
+                            break;
+                        case HEX_TYPE_SEGMENTADDRESS://start segment address record
+                            break;
+                        case HEX_TYPE_EXLINARADDRESS://Extended linear address record
+                            {
+                                for(i=binData->dataLen-1;i>=0;i++)
+                                {
+                                    baseAddr=binData[i];
+                                    baseAddr<<=8;
+                                }
+                                baseAddr<<=16;
+                            }
+                            break;
+                        case HEX_TYPE_STARTLINARADDR: //Start linear address record
+                            {
+                                for(i=binData->dataLen-1;i>=0;i++)
+                                {
+                                    baseAddr=binData[i];
+                                    baseAddr<<=8;
+                                }
+                            }
                             break;
                     }
                 }
