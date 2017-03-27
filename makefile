@@ -1,7 +1,7 @@
 CC=gcc
 
-test : 
-	$(CC) main.c -o test
+ts : 
+	$(CC) main.c -o ts
 
 clean : 
-	rm *.o test.exe
+	rm *.o ts.exe
