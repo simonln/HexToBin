@@ -1,0 +1,4 @@
+#execute files
+*.exe
+#fold
+.vscode/

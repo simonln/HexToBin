@@ -116,6 +116,8 @@ int AnalyzeOneRecord(byte *recordData,int recordLen,BIN_DATA_STRU *binData)
 }
 
 //handle the data
+//fp:the hex file handler
+//binData: the stucture of one record of hex file
 int handleData(FILE* fp,BIN_DATA_STRU *binData)
 {
     byte buffer[ONE_RECOARD_MAX_SIZE] = {0};
@@ -166,7 +168,7 @@ int HexToBin(char *input,char *output)
     {
         return 1;
     }
-    //printf("Enter loop\r\n");
+
     while(feof(hexFile)==0)
     {
         if(handleData(hexFile,&binData)==0)
@@ -185,10 +187,8 @@ int HexToBin(char *input,char *output)
                             {
                                 fputc('\0',binFile);
                             }
-                            //printf("O:%X,N:%X,C:%X\r\n",baseAddr,oldBaseAddr,curAddr);
                         }
                         fwrite(binData.data,1,binData.dataLen,binFile);
-                        //printf("O:%X,N:%x\r\n",baseAddr,oldBaseAddr);
                     }
                     break;
                 case HEX_TYPE_EOF://End of file record
@@ -214,7 +214,6 @@ int HexToBin(char *input,char *output)
                             }                          
                         }
                         baseAddr<<=16;
-                        //printf("O:%X,N:%x\r\n",baseAddr,oldBaseAddr);
                     }
                     break;
                 case HEX_TYPE_STARTLINARADDR: //Start linear address record
@@ -229,12 +228,11 @@ int HexToBin(char *input,char *output)
                                 baseAddr<<=8;
                             }                          
                         }
-                        //printf("O:%X,N:%x\r\n",baseAddr,oldBaseAddr);
                     }
                     break;
             }
         }
-    }//while(feof(hexFile)==0);//read to the end of file
+    }
     fclose(hexFile);
     fclose(binFile);
     return 0;
@@ -321,8 +319,8 @@ int main()
     }
     fclose(fp);*/
 
-    char hexFilePath[] = "files/Q7014IK16A.hex";
-    char binFilePath[] = "files/Q7014IK16A.bin";
+    char hexFilePath[] = "files/Test1.hex";
+    char binFilePath[] = "files/Test1.bin";
 
     if(0!=HexToBin(hexFilePath,binFilePath))
     {
