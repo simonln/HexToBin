@@ -94,14 +94,14 @@ int ReadOneRecord(byte *rawData,int rawLen,byte *realData,int *realLen)
 int AnalyzeOneRecord(byte *recordData,int recordLen,BIN_DATA_STRU *binData)
 {
     int i=0;
-    byte checksum=0;
+    byte checksum = 0;
     binData->dataLen = recordData[0];//the data length
     checksum+=recordData[0];
-    binData->offset = (recordData[1]<<8)+recordData[2];//the offset
+    binData->offset = ((int)recordData[1]<<8)+recordData[2];//the offset
     checksum+=recordData[1] + recordData[2];
     binData->type = recordData[3];
     checksum+=recordData[3];
-    for(i=4;i<recordLen-1)
+    for(i=4;i<recordLen-1;i++)
     {
         binData->data[i-4] = recordData[i];
         checksum+=recordData[i];
@@ -113,50 +113,80 @@ int AnalyzeOneRecord(byte *recordData,int recordLen,BIN_DATA_STRU *binData)
     }
     return 0;
 }
-//hexfile to bin file 
 
-void HexToBin(void)
+//hexfile to bin file 
+//return 
+//   0 OK
+//   1 error
+int HexToBin(void)
 {
     FILE *hexFile=NULL,*binFile=NULL;
-    int baseAddr = 0;//the program is write in this address
-    int curAddr = 0;//current address when writing
+    long oldBaseAddr = 0;//record the old base address
+    long baseAddr = 0;//the program is write in this address
+    long curAddr = 0;//current address when writing
         
-    hexFile = fopen("/files/Test1.hex"."r");//read the hex file
-    binFile = fopen("filse/Test.bin","wb");//write the bin file
+    hexFile = fopen("files/Test1.hex","r");//read the hex file
+    if(NULL==hexFile)
+    {
+        return 1;
+    }
+    binFile = fopen("files/Test.bin","wb");//write the bin file
+    if(NULL==hexFile)
+    {
+        return 1;
+    }
+    printf("Enter loop\r\n");
     do
     {
         byte buffer[ONE_RECOARD_MAX_SIZE] = {0};
         int len=0,i=0;
         BIN_DATA_STRU binData = {0};
-        if(0==GetOneRecord(fp,buffer,&len))
+        printf("0");
+        if(0==GetOneRecord(hexFile,buffer,&len))
         {
+            printf("1");
             byte realData[ONE_DATA_MAX_SIZE] = {0};
             int realLen=0;
             if(0==ReadOneRecord(buffer,len,realData,&realLen))
             {
+                printf("2");
                 if(0==AnalyzeOneRecord(realData,realLen,&binData))
                 {
                     switch(binData.type)
                     {
                         case HEX_TYPE_DATARECORD://Data record
                             {
-                                
+                                //assume the base address not change
+                                curAddr = ftell(binFile);
+                                if(curAddr==(binData.offset+baseAddr-oldBaseAddr))
+                                {
+                                    fwrite(binData.data,1,binData.dataLen,binFile);
+                                }
+                                else
+                                {
+                                    //pad with 0x00
+                                    for(i=(binData.offset+baseAddr-oldBaseAddr-curAddr);i>0;i--)
+                                    {
+                                        fputc('\0',binFile);
+                                    }
+                                }
                             }
                             break;
                         case HEX_TYPE_EOF://End of file record
                             {
                                 fclose(hexFile);
                                 fclose(binFile);
-                                return ;
+                                return 0;
                             }
                             break;
                         case HEX_TYPE_SEGMENTADDRESS://start segment address record
                             break;
                         case HEX_TYPE_EXLINARADDRESS://Extended linear address record
                             {
-                                for(i=binData->dataLen-1;i>=0;i++)
+                                oldBaseAddr = baseAddr;//save the old  base address
+                                for(i=binData.dataLen-1;i>=0;i--)
                                 {
-                                    baseAddr=binData[i];
+                                    baseAddr=binData.data[i];
                                     baseAddr<<=8;
                                 }
                                 baseAddr<<=16;
@@ -164,9 +194,10 @@ void HexToBin(void)
                             break;
                         case HEX_TYPE_STARTLINARADDR: //Start linear address record
                             {
-                                for(i=binData->dataLen-1;i>=0;i++)
+                                oldBaseAddr = baseAddr;//save the old  base address
+                                for(i=binData.dataLen-1;i>=0;i--)
                                 {
-                                    baseAddr=binData[i];
+                                    baseAddr=binData.data[i];
                                     baseAddr<<=8;
                                 }
                             }
@@ -175,8 +206,10 @@ void HexToBin(void)
                 }
             }
         }
-    }while(feof(fp)==0);//read to the end of file
-
+    }while(feof(hexFile)==0);//read to the end of file
+    fclose(hexFile);
+    fclose(binFile);
+    return 0;
 }
 //Test
 void GetSomeRecords(FILE *fp)
@@ -208,7 +241,7 @@ void GetSomeRecords(FILE *fp)
 
 int main()
 {
-    FILE*fp=NULL;
+/*    FILE*fp=NULL;
     byte buffer[43]={0};
     byte realData[21]={0};
     int len=0,realLen=0,i=0;
@@ -222,7 +255,16 @@ int main()
     {
         GetSomeRecords(fp);
     }
-    fclose(fp);
+    fclose(fp);*/
+
+    if(0!=HexToBin())
+    {
+        printf("Some error\r\n");
+    }
+    else
+    {
+        printf("OK\r\n");
+    }
     return 0;
 }
 
