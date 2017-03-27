@@ -141,10 +141,12 @@ int handleData(FILE* fp,BIN_DATA_STRU *binData)
 }
 
 //hexfile to bin file 
+//input:the path of input hex file
+//output:the path of output bin file
 //return 
 //   0 OK
 //   1 error
-int HexToBin(void)
+int HexToBin(char *input,char *output)
 {
     FILE *hexFile=NULL,*binFile=NULL;
     long oldBaseAddr = 0;//record the old base address
@@ -154,12 +156,12 @@ int HexToBin(void)
     BIN_DATA_STRU binData = {0};
     int i = 0;
         
-    hexFile = fopen("files/Test1.hex","r");//read the hex file
+    hexFile = fopen(input,"r");//read the hex file
     if(NULL==hexFile)
     {
         return 1;
     }
-    binFile = fopen("files/Test.bin","wb");//write the bin file
+    binFile = fopen(output,"wb");//write the bin file
     if(NULL==hexFile)
     {
         return 1;
@@ -176,12 +178,7 @@ int HexToBin(void)
                         //assume the base address not change
                         curAddr = ftell(binFile);
                         oldBaseAddr = oldBaseAddr?oldBaseAddr:baseAddr;//if oldBaseAddr==0 and copy baseAddr to oldBaseAddr
-                        if(curAddr==(binData.offset+baseAddr-oldBaseAddr))
-                        {
-                            fwrite(binData.data,1,binData.dataLen,binFile);
-                            //printf("O:%X,N:%X,C:%X\r\n",baseAddr,oldBaseAddr,curAddr);
-                        }
-                        else
+                        if(curAddr!=(binData.offset+baseAddr-oldBaseAddr))
                         {
                             //pad with 0x00
                             for(i=(binData.offset+baseAddr-oldBaseAddr-curAddr);i>0;i--)
@@ -190,6 +187,7 @@ int HexToBin(void)
                             }
                             //printf("O:%X,N:%X,C:%X\r\n",baseAddr,oldBaseAddr,curAddr);
                         }
+                        fwrite(binData.data,1,binData.dataLen,binFile);
                         //printf("O:%X,N:%x\r\n",baseAddr,oldBaseAddr);
                     }
                     break;
@@ -323,7 +321,10 @@ int main()
     }
     fclose(fp);*/
 
-    if(0!=HexToBin())
+    char hexFilePath[] = "files/Q7014IK16A.hex";
+    char binFilePath[] = "files/Q7014IK16A.bin";
+
+    if(0!=HexToBin(hexFilePath,binFilePath))
     {
         printf("Some error\r\n");
     }
