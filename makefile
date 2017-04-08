@@ -4,4 +4,4 @@ ts :
 	$(CC) main.c -o ts
 
 clean : 
-	rm *.o ts.exe
+	rm *.o ts

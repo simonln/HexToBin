@@ -1,6 +1,6 @@
 #include "includes.h"
 
-#define ONE_RECOARD_MAX_SIZE (43)
+#define ONE_RECORD_MAX_SIZE (45)
 #define ONE_DATA_MAX_SIZE    (21)
 #define DATA_SIZE            (16)
 
@@ -33,10 +33,11 @@ typedef struct BIN_DATA
 int GetOneRecord(FILE *fp,byte *buffer,int *len)
 {
     byte curChar=0,oldChar=0;
-    int count=0,timeout=1000;
+    int count=0,timeout=ONE_RECORD_MAX_SIZE;
     while(timeout--)
     {
-        curChar=fgetc(fp);
+        //curChar=fgetc(fp);
+	fread(&curChar,1,1,fp);
         buffer[count++]=curChar;
         if(oldChar=='\r'&&curChar=='\n')
         {
@@ -120,7 +121,7 @@ int AnalyzeOneRecord(byte *recordData,int recordLen,BIN_DATA_STRU *binData)
 //binData: the stucture of one record of hex file
 int handleData(FILE* fp,BIN_DATA_STRU *binData)
 {
-    byte buffer[ONE_RECOARD_MAX_SIZE] = {0};
+    byte buffer[ONE_RECORD_MAX_SIZE] = {0};
     int len=0;
     
 
@@ -158,13 +159,13 @@ int HexToBin(char *input,char *output)
     BIN_DATA_STRU binData = {0};
     int i = 0;
         
-    hexFile = fopen(input,"r");//read the hex file
+    hexFile = fopen(input,"rb");//read the hex file
     if(NULL==hexFile)
     {
         return 1;
     }
     binFile = fopen(output,"wb");//write the bin file
-    if(NULL==hexFile)
+    if(NULL==binFile)
     {
         return 1;
     }
@@ -243,7 +244,7 @@ void GetSomeRecords(FILE *fp)
     int lines=1;
     do
     {
-        byte buffer[ONE_RECOARD_MAX_SIZE] = {0};
+        byte buffer[ONE_RECORD_MAX_SIZE] = {0};
         byte realData[ONE_DATA_MAX_SIZE] = {0};
         int realLen = 0;
         int len=0;
@@ -303,7 +304,8 @@ void Test_HandleData(void)
 
 int main()
 {
-/*    FILE*fp=NULL;
+/*
+    FILE*fp=NULL;
     byte buffer[43]={0};
     byte realData[21]={0};
     int len=0,realLen=0,i=0;
@@ -315,12 +317,22 @@ int main()
     }
     else
     {
-        GetSomeRecords(fp);
+        //GetSomeRecords(fp);
+	//printf("OK\r\n");
+	if(GetOneRecord(fp,buffer,&len)==0)
+	{
+		for(i=0;i<len;i++)
+		{
+			printf("%02X ",buffer[i]);
+		}
+		printf("\r\n");
+	}
     }
-    fclose(fp);*/
+    fclose(fp);
+*/
 
     char hexFilePath[] = "files/Test1.hex";
-    char binFilePath[] = "files/Test1.bin";
+    char binFilePath[] = "files/Test123.bin";
 
     if(0!=HexToBin(hexFilePath,binFilePath))
     {
