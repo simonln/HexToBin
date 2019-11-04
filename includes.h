@@ -12,7 +12,7 @@
 
 
 //typedef
-typedef unsigned char byte;
+//typedef unsigned char byte;
 
 #endif
 

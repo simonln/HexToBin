@@ -1,27 +1,50 @@
 #include "includes.h"
+#include <stdlib.h>
+#include <string.h>
 
-#define ONE_RECORD_MAX_SIZE (45)
-#define ONE_DATA_MAX_SIZE    (21)
-#define DATA_SIZE            (16)
+#define HEXFORMAT_LEN				 (11)
+#define ONE_RECORD_MAX_SIZE  (523) //DATA_SIZE*2 + HEX_FORMAT_LEN + NEW_LINE_LEN
+#define ONE_DATA_MAX_SIZE    (260)  //DATA_SIZE + 5
+#define DATA_SIZE            (255)
 
 
 //type
-#define HEX_TYPE_DATARECORD       (0x00)
-#define HEX_TYPE_EOF              (0x01)
-#define HEX_TYPE_EXSEGMENTADDRESS (0X02)
-#define HEX_TYPE_SEGMENTADDRESS   (0x03)
-#define HEX_TYPE_EXLINARADDRESS   (0x04)
-#define HEX_TYPE_STARTLINARADDR   (0X05)
+#define HEX_TYPE_DATARECORD        (0x00)
+#define HEX_TYPE_EOF               (0x01)
+#define HEX_TYPE_EXSEGMENTADDRESS  (0X02)
+#define HEX_TYPE_SEGMENTADDRESS    (0x03)
+#define HEX_TYPE_EXLINEARADDRESS   (0x04)
+#define HEX_TYPE_STARTLINEARADDR   (0X05)
 
 
-typedef struct BIN_DATA
+
+
+typedef unsigned char Byte;
+
+typedef struct
 {
     int offset;
-    int dataLen;
-    byte type;
-    byte data[DATA_SIZE];
-}BIN_DATA_STRU;
+    int size;
+    Byte type;
+    Byte data[DATA_SIZE];
+}BinData;
 
+
+//address data
+typedef struct
+{
+	int address;
+	int data_size;
+	long data_pos;
+}Address;
+
+//node struct 
+typedef struct Node
+{
+	Address addr;
+	struct Node *prev;
+	struct Node *next; 
+}AddrNode;
 
 
 //fp:file poniter
@@ -30,86 +53,135 @@ typedef struct BIN_DATA
 //return 
 //  0 success
 //  1 error
-int GetOneRecord(FILE *fp,byte *buffer,int *len)
+int GetOneRecord(FILE *fp,Byte *buffer,int *len)
 {
-    byte curChar=0,oldChar=0;
-    int count=0,timeout=ONE_RECORD_MAX_SIZE;
+    Byte cur_char = 0;
+    int count = 0,timeout = ONE_RECORD_MAX_SIZE;
     while(timeout--)
     {
         //curChar=fgetc(fp);
-	fread(&curChar,1,1,fp);
-        buffer[count++]=curChar;
-        if(oldChar=='\r'&&curChar=='\n')
+				fread(&cur_char,1,1,fp);
+        buffer[count++] = cur_char;
+				//linux: 0x0D 0x0A  "\n"
+				//windows: 0x0A		"\r\n"
+				if(cur_char== '\n')
         {
-            *len=count;
+            *len = count;
             return 0;//complete
         }
-        oldChar=curChar;//save the last char
     }
     return 1;
 }
 
-//rawData: the raw data
-//rawLen:  the length of rawData
-//realData: assic to byte
-//realLen: the data len
+//judge the charater is hex asiic 0-9 or A-F
+int IsHex(char c)
+{
+	if(((c >= '0') && (c <= '9')) || ((c >= 'A') && (c <= 'F')))
+	{
+		return 1;		//true
+	}
+	else
+	{
+		return 0; //false
+	}
+}
+
+//translate the two asiic character to hex character
+int Asiic2Hex(Byte *hex_buff,Byte *asiic_buff,int asiic_len)
+{
+	int i = 0;
+	Byte one_hex = 0;
+	for( i = 0 ; i < asiic_len -1 ; i += 2)
+	{
+		Byte hi = asiic_buff[i];
+		Byte lo = asiic_buff[i + 1];
+		if(IsHex(hi) && IsHex(lo))
+		{
+					one_hex = (hi >= 'A')?(hi - 'A' + 10):(hi - '0');
+					one_hex = (one_hex << 4) + ((lo >= 'A')?(lo - 'A' + 10):(lo - '0'));
+					hex_buff[i / 2]  = one_hex;
+		}
+		else
+		{
+			return 1;			//format error
+		}
+	}
+	return 0;
+}
+
+//translate bin data to hehx string
+int Hex2Asiic(Byte *bin_data,int bin_data_len,char *str)
+{
+	char *ptr = str;
+	int i =  0;
+	for(i = 0 ; i < bin_data_len ; ++i)
+	{
+#ifdef _WIN32
+		sprintf_s(ptr,bin_data_len * 2 + 1,"%02X"	,bin_data[i]);
+#else
+		sprintf(ptr,"%02X",bin_data[i]);
+#endif
+	}
+	ptr += 2;
+	str[bin_data_len * 2] = '\0';
+	return 0;
+}
+
+
+//raw_data: the raw data
+//raw_len:  the length of raw_data
+//real_data: assic to byte
+//real_len: the data len
 //return 
 //  0 success
 //  1 error
-int ReadOneRecord(byte *rawData,int rawLen,byte *realData,int *realLen)
+int ReadOneRecord(Byte *raw_data,int raw_len,Byte *real_data,int *real_len)
 {
-    int i=1,count=0;//first byte is ':' and the last two byte is '\r' '\n'
-    byte oneData=0,oneDataComplete=0;
-    //printf("rawLen:%d\r\n",rawLen);
-    for(i=1;i<rawLen-3;i+=2)
-    {
-        byte tmp1=rawData[i],tmp2=rawData[i+1];
-        if((tmp1>='0'&&tmp1<='9') ||(tmp1>='A'&&tmp1<='F'))
-        {
-            if((tmp2>='0'&&tmp2<='9') ||(tmp2>='A'&&tmp2<='F'))
-            {
-                oneData=(tmp1>='A')?(tmp1-'A'+10):(tmp1-'0');
-                oneData=(oneData<<4)+((tmp2>='A')?(tmp2-'A'+10):(tmp2-'0'));
-                realData[count++]=oneData;
-            }
-            else
-            {
-              return 1;//error  
-            }
-        }
-        else
-        {
-            return 1;//error
-        }
-    }
-    *realLen=count;
-    return 0;
+    //int i = 1,count = 0;	//first byte is ':' and the last two byte is '\r' '\n'
+    //Byte one_data = 0,one_data_complete = 0;
+    int hex_len = 0;	//hex asiic character length
+		if(raw_data[raw_len - 2] == '\r')
+		{
+			hex_len = raw_len - 3;
+		}
+		else
+		{
+			hex_len = raw_len - 2;
+		}
+
+		if(0 == Asiic2Hex(real_data,&raw_data[1],hex_len))
+		{
+			*real_len = hex_len / 2;
+			return 0;
+		}
+		return 1;
 }
 
-//recordData: the record data
-//recordLen : the length of record data
-//binData : save the one record data to bin data
+//record_data: the record data
+//record_len : the length of record data
+//bin_data : save the one record data to bin data
 //return 
 //   0 success
 //   1 checksum is error
 
-int AnalyzeOneRecord(byte *recordData,int recordLen,BIN_DATA_STRU *binData)
+int AnalyzeOneRecord(Byte *record_data,int record_len,BinData *bin_data)
 {
-    int i=0;
-    byte checksum = 0;
-    binData->dataLen = recordData[0];//the data length
-    checksum+=recordData[0];
-    binData->offset = ((int)recordData[1]<<8)+recordData[2];//the offset
-    checksum+=recordData[1] + recordData[2];
-    binData->type = recordData[3];
-    checksum+=recordData[3];
-    for(i=4;i<recordLen-1;i++)
+    int i = 0;
+    Byte checksum = 0;
+
+    bin_data->size = record_data[0];	//the data length
+    checksum +=record_data[0];
+    bin_data->offset = ((int)record_data[1] << 8) + record_data[2];	//the offset
+    checksum += record_data[1] + record_data[2];
+    bin_data->type = record_data[3];
+    checksum += record_data[3];
+    for(i = 4 ; i < record_len - 1 ; ++i)
     {
-        binData->data[i-4] = recordData[i];
-        checksum+=recordData[i];
+        bin_data->data[i - 4] = record_data[i];
+        checksum += record_data[i];
     }
-    checksum = 0x100-checksum;
-    if(checksum!=recordData[i])
+    checksum = 0x100 - checksum;
+    if(checksum != record_data[i])
     {
         return 1;
     }
@@ -118,23 +190,20 @@ int AnalyzeOneRecord(byte *recordData,int recordLen,BIN_DATA_STRU *binData)
 
 //handle the data
 //fp:the hex file handler
-//binData: the stucture of one record of hex file
-int handleData(FILE* fp,BIN_DATA_STRU *binData)
+//bin_data: the stucture of one record of hex file
+int HandleData(FILE* fp,BinData *bin_data)
 {
-    byte buffer[ONE_RECORD_MAX_SIZE] = {0};
-    int len=0;
-    
+    Byte buffer[ONE_RECORD_MAX_SIZE] ={ 0 };
+    Byte real_data[ONE_DATA_MAX_SIZE] = { 0 };
 
-    byte realData[ONE_DATA_MAX_SIZE] = {0};
-    int realLen=0;
+		int len = 0;
+    int real_len = 0;
 
-    if(0==GetOneRecord(fp,buffer,&len))
+    if(0 == GetOneRecord(fp,buffer,&len))
     {
-        //printf("1");
-        if(0==ReadOneRecord(buffer,len,realData,&realLen))
+        if(0==ReadOneRecord(buffer,len,real_data,&real_len))
         {
-            //printf("2");
-            if(0==AnalyzeOneRecord(realData,realLen,binData))
+            if(0==AnalyzeOneRecord(real_data,real_len,bin_data))
             {
                 return 0;//ok
             }
@@ -151,82 +220,99 @@ int handleData(FILE* fp,BIN_DATA_STRU *binData)
 //   1 error
 int HexToBin(char *input,char *output)
 {
-    FILE *hexFile=NULL,*binFile=NULL;
-    long oldBaseAddr = 0;//record the old base address
-    long baseAddr = 0;//the program is write in this address
-    long curAddr = 0;//current address when writing
+    FILE *hex_file = NULL,*bin_file = NULL;
+		int start_addr = 0; //the start address of application
+		int base_addr = 0; //base address in record
+		int cur_addr = 0; //current address when writing
 
-    BIN_DATA_STRU binData = {0};
+    BinData bin_data = {0};
     int i = 0;
         
-    hexFile = fopen(input,"rb");//read the hex file
-    if(NULL==hexFile)
+    //read the hex file
+#ifdef _WIN32
+    if(fopen_s(&hex_file,input,"rb") != 0)
     {
         return 1;
     }
-    binFile = fopen(output,"wb");//write the bin file
-    if(NULL==binFile)
+    //write the bin file
+    if(fopen_s(&hex_file,output,"wb") != 0)
     {
         return 1;
     }
-
-    while(feof(hexFile)==0)
+#else
+		hex_file = fopen(input,"rb");
+		if(hex_file == NULL)
+		{
+			return 1;
+		}
+		bin_file = fopen(output,"wb");
+		if(bin_file == NULL)
+		{
+			return 1;
+		}
+#endif
+    while(feof(hex_file) == 0)
     {
-        if(handleData(hexFile,&binData)==0)
+        if(HandleData(hex_file,&bin_data) == 0)
         {
-            switch(binData.type)
+            switch(bin_data.type)
             {
                 case HEX_TYPE_DATARECORD://Data record
                     {
+
+												if(start_addr == 0)
+												{
+													start_addr = base_addr + bin_data.offset;	//record the start address in application
+												}
                         //assume the base address not change
-                        curAddr = ftell(binFile);
-                        oldBaseAddr = oldBaseAddr?oldBaseAddr:baseAddr;//if oldBaseAddr==0 and copy baseAddr to oldBaseAddr
-                        if(curAddr!=(binData.offset+baseAddr-oldBaseAddr))
+                        cur_addr = ftell(bin_file);
+                       // oldBaseAddr = oldBaseAddr?oldBaseAddr:baseAddr;//if oldBaseAddr==0 and copy baseAddr to oldBaseAddr
+                        if(cur_addr != (bin_data.offset + base_addr - start_addr))
                         {
                             //pad with 0x00
-                            for(i=(binData.offset+baseAddr-oldBaseAddr-curAddr);i>0;i--)
+                            for(i = (bin_data.offset + base_addr - start_addr - cur_addr); i > 0 ; ++i)
                             {
-                                fputc('\0',binFile);
+                                fputc('\0',bin_file);
                             }
                         }
-                        fwrite(binData.data,1,binData.dataLen,binFile);
+                        fwrite(bin_data.data,1,bin_data.size,bin_file);
                     }
                     break;
                 case HEX_TYPE_EOF://End of file record
                     {
-                        fclose(hexFile);
-                        fclose(binFile);
+                        fclose(hex_file);
+                        fclose(bin_file);
                         return 0;
                     }
                 case HEX_TYPE_EXSEGMENTADDRESS:
                     break;
                 case HEX_TYPE_SEGMENTADDRESS://start segment address record
                     break;
-                case HEX_TYPE_EXLINARADDRESS://Extended linear address record
+                case HEX_TYPE_EXLINEARADDRESS://Extended linear address record
                     {
-                        oldBaseAddr = baseAddr;//save the old  base address
-                        baseAddr = 0;//clear
-                        for(i=0;i<binData.dataLen;i++)
+                       // oldBaseAddr = baseAddr;//save the old  base address
+                        base_addr = 0;//clear
+                        for(i = 0 ; i < bin_data.size ; ++i)
                         { 
-                            baseAddr+=binData.data[i];
-                            if(i<(binData.dataLen-1))
+                            base_addr += bin_data.data[i];
+                            if( i < (bin_data.size - 1))
                             {
-                                baseAddr<<=8;
+                                base_addr <<= 8;
                             }                          
                         }
-                        baseAddr<<=16;
+                        base_addr <<= 16;
                     }
                     break;
-                case HEX_TYPE_STARTLINARADDR: //Start linear address record
+                case HEX_TYPE_STARTLINEARADDR: //Start linear address record
                     {
-                        oldBaseAddr = baseAddr;//save the old  base address
-                        baseAddr = 0;//clear
-                        for(i=0;i<binData.dataLen;i++)
+                        //oldBaseAddr = baseAddr;//save the old  base address
+                        base_addr = 0;//clear
+                        for( i = 0 ; i < bin_data.size ; ++i)
                         {  
-                            baseAddr+=binData.data[i];
-                            if(i<(binData.dataLen-1))
+                            base_addr += bin_data.data[i];
+                            if(i < (bin_data.size - 1))
                             {
-                                baseAddr<<=8;
+                                base_addr <<= 8;
                             }                          
                         }
                     }
@@ -234,10 +320,324 @@ int HexToBin(char *input,char *output)
             }
         }
     }
-    fclose(hexFile);
-    fclose(binFile);
+    fclose(hex_file);
+    fclose(bin_file);
     return 0;
 }
+
+
+//item be add to list
+////head_ptr: head of list
+////item : will be add to list
+void AddToList(AddrNode **head_ptr,AddrNode *item)
+{
+	AddrNode *ptr = *head_ptr;
+	if(ptr == NULL)	//the list is none
+	{
+		*head_ptr = item;
+		return;
+	}
+	//find the right position
+	while((ptr->next != NULL) && (ptr->addr.address <= item->addr.address))
+	{
+		ptr = ptr->next;
+	}
+
+	//there are one item in list
+	if(ptr->prev == NULL)
+	{
+		if(ptr->addr.address > item->addr.address)
+		{
+			*head_ptr = item;
+			item->next = ptr;
+			ptr->prev  = item;
+		}
+		else
+		{
+			ptr->next = item;
+			item->prev = ptr;
+		}
+	}
+	else
+	{
+		//it is rear if list
+		if(ptr->next == NULL)
+		{
+			ptr->next = item;
+			item->prev = ptr;
+		}
+		else
+		{
+			ptr->prev->next = item;
+			ptr->prev = item;
+			item->prev = ptr->prev;
+			item->next = ptr;
+		}
+	}
+
+}
+
+
+//analyze the hex file and get the address of data
+////hex_file: hex file handle
+////nodes_ptr:the head of node
+////addr_count: the count of address record
+//// return:
+////	0 success
+////	1 error
+int AnalyzeAddr(FILE *hex_file,AddrNode **nodes_ptr,int *addr_count)
+{
+	BinData bin_data = { 0 };
+
+	int base_addr  = 0;	//base address of record 
+
+	int i = 0 ;
+
+	int count  = 0; //the count of address
+
+	while(feof(hex_file)  == 0)
+	{
+		if(HandleData(hex_file,&bin_data) == 0)
+		{
+			switch(bin_data.type)
+			{
+				case HEX_TYPE_DATARECORD:	//data record 
+					{
+						AddrNode *one_node = (AddrNode*)malloc(sizeof(AddrNode));
+						one_node->addr.address = bin_data.offset + base_addr;
+						one_node->addr.data_size = bin_data.size;
+						fseek(hex_file,-2,SEEK_CUR);	//back 2 byte ,check this byte is '\r'
+						if(fgetc(hex_file) == '\r')
+						{
+							one_node->addr.data_pos = ftell(hex_file) - ((bin_data.size + 1) * 2 + 1); //newline  mark and checksum 
+						}
+						else
+						{
+							one_node->addr.data_pos = ftell(hex_file) - ((bin_data.size + 1) * 2 + 0);
+						}
+						fseek(hex_file , 1, SEEK_CUR); //set the postion to the start of line
+						one_node->next = NULL;
+						one_node->prev = NULL;
+						AddToList(nodes_ptr,one_node);
+						++count;
+					//	printf("I:%d A:%0X D:%0X P:%0X \r\n",i,one_node->addr.address,one_node->addr.data_size,one_node->addr.data_pos);
+
+					}
+					break;
+				case HEX_TYPE_EOF:	//end of file record
+					{
+						*addr_count = count;
+						return 0;
+					}
+					break;
+				case HEX_TYPE_EXSEGMENTADDRESS:	//Extended segement address record 
+					{
+						if(bin_data.size == 2)
+						{
+							base_addr = ((bin_data.data[0] << 8) + bin_data.data[1]) << 4;
+						}
+					}
+					break;
+				case HEX_TYPE_SEGMENTADDRESS:		//start segement address record
+					break;
+				case HEX_TYPE_EXLINEARADDRESS:	//Extended linear address record
+					{
+						base_addr = 0; //clear
+						for( i = 0 ; i < bin_data.size; ++i)
+						{
+							base_addr += bin_data.data[i];
+							if(i < (bin_data.size - 1))
+							{
+								base_addr <<= 8;
+							}
+						}
+						base_addr <<= 16;
+					}
+					break;
+				case HEX_TYPE_STARTLINEARADDR:	//start linear address record
+					{
+						base_addr = 0;
+						for(i = 0 ; i < bin_data.size ; ++i)
+						{
+							base_addr += bin_data.data[i];
+							if(i < (bin_data.size - 1))
+							{
+								base_addr <<= 8;
+							}
+						}
+					}
+					break;
+				default:
+					break;
+
+			}
+		}
+	}
+	*addr_count = count;
+	return 0;
+
+}
+
+
+void Swap(Address *array1 , Address *array2)
+{
+	Address temp = *array1;
+	*array1 = *array2;
+	*array2 = temp;
+}
+
+
+//Shell sort the array of address by ascending
+////array: the array of address
+////length: the length of array
+//// return:
+////	1 success
+////  0 error
+int AddSort(Address *array,int length)
+{
+	int step = 1;
+	int i = 0, j = 0;
+	while(step < (length  / 3))
+	{
+		step = 3 * step + 1;
+	}
+	while(step >= 1)
+	{
+		for( i = step ; i < length; ++i)
+		{
+			for(j = i; (j > step) && (array[j].address  < array[j - step].address) ; j -= step)
+			{
+				Swap(&array[j],&array[j - step]); //swap
+			}
+		}
+		step /= 3; //change the step
+	}
+	return 0;
+}
+
+//copy the node to array
+////array:array of address
+////head:head of node
+void NodeListCopyToArray(Address *array , AddrNode *head)
+{
+	int i = 0;
+	AddrNode *ptr = NULL;
+	while(head != NULL)
+	{
+		array[i++] = head->addr;
+		ptr = head;
+		head = head->next;
+		free(ptr);
+	}
+}
+
+//write data to bin file
+////binFile:bin file handle
+////hexFile:hex file handle
+////addrArray: array of address
+////length: the length of addrArray
+////padding: padding with this char
+int BinWrite(FILE *bin_file , FILE *hex_file,AddrNode *head, int length,Byte padding)
+{
+	if(head == NULL)
+	{
+		return 1;	//error
+	}
+	int base_addr = head->addr.address;
+	int base_addr_file = 0;
+	int cur_addr = 0;		//current address when writing
+
+	int i = 0 , j = 0;
+	Byte *buffer = (Byte*)malloc(2 * DATA_SIZE * sizeof(Byte));		//save the asiic character
+	Byte *bin_buff = (Byte*)malloc(DATA_SIZE * sizeof(Byte));
+
+	base_addr_file = ftell(bin_file);		//write bin data from here
+	while(head != NULL)
+	{
+		fseek(hex_file ,head->addr.data_pos,SEEK_SET);	//set file position to data position
+		fread(buffer,1,(head->addr.data_size * 2),hex_file);
+		if(0 == Asiic2Hex(bin_buff,buffer,(head->addr.data_size * 2)))
+		{
+			cur_addr = ftell(bin_file);
+			if((cur_addr - base_addr_file) < (head->addr.address - base_addr))
+			{
+				for( j = (head->addr.address - base_addr - (cur_addr - base_addr_file)); j > 0;--j)
+				{
+					fputc(padding,bin_file);
+				}
+			}
+			fwrite(bin_buff,1,head->addr.data_size,bin_file);
+			head = head->next;
+		}
+		else
+		{
+			return 2;
+		}
+	}
+	free(buffer);
+	free(bin_buff);
+	return 0;
+}
+
+
+
+//override HexToBin
+int HexToBin2(char *input,char *output)
+{
+	
+    FILE *hex_file = NULL,*bin_file = NULL;
+
+       
+		AddrNode *node_ptr = NULL;
+
+		int addr_count  = 0; //the count of address
+
+    //read the hex file
+#ifdef _WIN32
+    if(fopen_s(&hex_file,input,"rb") != 0)
+    {
+        return 1;
+    }
+    //write the bin file
+    if(fopen_s(&hex_file,output,"wb") != 0)
+    {
+        return 1;
+    }
+#else
+		hex_file = fopen(input,"rb");
+		if(hex_file == NULL)
+		{
+			return 1;
+		}
+		bin_file = fopen(output,"wb");
+		if(bin_file == NULL)
+		{
+			return 1;
+		}
+#endif
+
+	printf("start...\r\n");
+	if(0 == AnalyzeAddr(hex_file,&node_ptr,&addr_count))
+	{
+		printf("Num:%d " ,addr_count); 
+		if(0 == BinWrite(bin_file,hex_file,node_ptr,addr_count,0x00))
+		{
+			printf("OK\r\n");
+		}
+		else
+		{
+			return 3;	//write error
+		}
+	}
+	else
+	{
+		return 2;	//analyze error
+	}
+	return 0;
+
+}
+
+/*
 //Test
 void GetSomeRecords(FILE *fp)
 {
@@ -300,7 +700,7 @@ void Test_HandleData(void)
     }
     
 }
-
+*/
 
 int main()
 {
@@ -331,10 +731,10 @@ int main()
     fclose(fp);
 */
 
-    char hexFilePath[] = "files/Test1.hex";
-    char binFilePath[] = "files/Test123.bin";
+    char hexFilePath[] = "files/Test_Block.hex";
+    char binFilePath[] = "files/Test_Block123.bin";
 
-    if(0!=HexToBin(hexFilePath,binFilePath))
+    if(0 != HexToBin2(hexFilePath,binFilePath))
     {
         printf("Some error\r\n");
     }

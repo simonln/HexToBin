@@ -1,7 +1,7 @@
-CC=gcc
+CC = gcc
 
-ts : 
-	$(CC) main.c -o ts
+HexToBin : main.c
+	$(CC) $^ -o $@
 
 clean : 
 	rm *.o ts
