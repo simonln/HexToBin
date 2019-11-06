@@ -251,6 +251,7 @@ int HexToBin(char *input,char *output)
 			return 1;
 		}
 #endif
+		printf("start...\r\n");
     while(feof(hex_file) == 0)
     {
         if(HandleData(hex_file,&bin_data) == 0)
@@ -267,10 +268,10 @@ int HexToBin(char *input,char *output)
                         //assume the base address not change
                         cur_addr = ftell(bin_file);
                        // oldBaseAddr = oldBaseAddr?oldBaseAddr:baseAddr;//if oldBaseAddr==0 and copy baseAddr to oldBaseAddr
-                        if(cur_addr != (bin_data.offset + base_addr - start_addr))
+                        if(cur_addr < (bin_data.offset + base_addr - start_addr))
                         {
                             //pad with 0x00
-                            for(i = (bin_data.offset + base_addr - start_addr - cur_addr); i > 0 ; ++i)
+                            for(i = (bin_data.offset + base_addr - start_addr - cur_addr); i > 0 ; --i)
                             {
                                 fputc('\0',bin_file);
                             }
@@ -734,7 +735,8 @@ int main()
     char hexFilePath[] = "files/Test_Block.hex";
     char binFilePath[] = "files/Test_Block123.bin";
 
-    if(0 != HexToBin2(hexFilePath,binFilePath))
+   // if(0 != HexToBin2(hexFilePath,binFilePath))
+	 if(0 != HexToBin(hexFilePath,binFilePath))
     {
         printf("Some error\r\n");
     }
